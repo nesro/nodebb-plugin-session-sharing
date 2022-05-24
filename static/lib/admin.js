@@ -1,8 +1,8 @@
 'use strict';
 
-/* globals define, $, app, socket, config */
+/* globals define, $, socket, config */
 
-define('admin/plugins/session-sharing', ['settings'], function (Settings) {
+define('admin/plugins/session-sharing', ['settings', 'alerts'], function (Settings, alerts) {
 	var ACP = {};
 
 	ACP.init = function () {
@@ -10,7 +10,7 @@ define('admin/plugins/session-sharing', ['settings'], function (Settings) {
 
 		$('#save').on('click', function () {
 			Settings.save('session-sharing', $('.session-sharing-settings'), function () {
-				app.alert({
+				alerts.alert({
 					type: 'success',
 					alert_id: 'session-sharing-saved',
 					title: 'Settings Saved',
@@ -34,11 +34,11 @@ define('admin/plugins/session-sharing', ['settings'], function (Settings) {
 
 		ACP._searchDelay = setTimeout(function () {
 			delete ACP._searchDelay;
-			
+
 			var qs = decodeURIComponent($.param({
 				query: element.val(),
 			}));
-			
+
 			$.get(config.relative_path + '/api/admin/manage/users?' + qs)
 				.then(function (results) {
 					var resultEl = $('#result');
