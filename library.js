@@ -141,7 +141,7 @@ plugin.normalizePayload = async (payload) => {
 	}
 
 	if (typeof payload !== 'object') {
-		winston.warn('[session-sharing] the payload is not an object', payload);
+		winston.error('[session-sharing] the payload is not an object', payload);
 		throw new Error('payload-invalid');
 	}
 
@@ -153,7 +153,7 @@ plugin.normalizePayload = async (payload) => {
 	});
 
 	if (!userData.id) {
-		winston.warn('[session-sharing] No user id was given in payload');
+		winston.error('[session-sharing] No user id was given in payload');
 		throw new Error('payload-invalid');
 	}
 
@@ -167,12 +167,12 @@ plugin.normalizePayload = async (payload) => {
 	userData.username = userData.username.trim().replace(/[^'"\s\-.*0-9\u00BF-\u1FFF\u2C00-\uD7FF\w]+/, '-');
 
 	if (!userData.username) {
-		winston.warn('[session-sharing] No valid username could be determined');
+		winston.error('[session-sharing] No valid username could be determined');
 		throw new Error('payload-invalid');
 	}
 
 	if (userData.hasOwnProperty('groups') && !Array.isArray(userData.groups)) {
-		winston.warn('[session-sharing] Array expected for `groups` in JWT payload. Ignoring.');
+		winston.error('[session-sharing] Array expected for `groups` in JWT payload. Ignoring.');
 		delete userData.groups;
 	}
 
@@ -229,18 +229,18 @@ plugin.findOrCreateUser = async (userData) => {
 			}
 		} catch (error) {
 			/* ignore errors, but assume the user doesn't exist  */
-			winston.warn('[session-sharing] Error while testing user existance', error);
+			winston.error('[session-sharing] Error while testing user existance', error);
 		}
 	}
 
 	if (!userId && mergeUid && !isNaN(mergeUid)) {
-		winston.info('[session-sharing] Found user via their email, associating this id (' + id + ') with their NodeBB account');
+		winston.error('[session-sharing] Found user via their email, associating this id (' + id + ') with their NodeBB account');
 		await db.sortedSetAdd(plugin.settings.name + ':uid', mergeUid, id);
 		userId = mergeUid;
 	}
 
 	/* create the user from payload if necessary */
-	winston.debug('createUser?', !userId);
+	winston.error('[session-sharing] createUser?', !userId);
 	if (!userId) {
 		if (plugin.settings.noRegistration === 'on') {
 			throw new Error('no-match');
@@ -254,7 +254,7 @@ plugin.findOrCreateUser = async (userData) => {
 };
 
 plugin.updateUserProfile = async (uid, userData, isNewUser) => {
-	winston.debug('consider updateProfile?', isNewUser || plugin.settings.updateProfile === 'on');
+	winston.error('[session-sharing] consider updateProfile?', isNewUser || plugin.settings.updateProfile === 'on');
 	let userObj = {};
 
 	/* even update the profile on a new account, since some fields are not initialized by NodeBB */
@@ -272,7 +272,7 @@ plugin.updateUserProfile = async (uid, userData, isNewUser) => {
 	}, {});
 
 	if (Object.keys(obj).length) {
-		winston.debug('[session-sharing] Updating profile fields:', obj);
+		winston.error('[session-sharing] Updating profile fields:', obj);
 		obj.uid = uid;
 		try {
 			userObj = await user.updateProfile(uid, obj);
@@ -282,7 +282,7 @@ plugin.updateUserProfile = async (uid, userData, isNewUser) => {
 				userObj = existingFields;
 			}
 		} catch (error) {
-			winston.warn('[session-sharing] Unable to update profile information for uid: ' + uid + '(' + error.message + ')');
+			winston.error('[session-sharing] Unable to update profile information for uid: ' + uid + '(' + error.message + ')');
 		}
 	}
 
@@ -437,14 +437,14 @@ plugin.addMiddleware = async function ({ req, res }) {
 
 			switch (error.message) {
 			case 'payload-invalid':
-				winston.warn('[session-sharing] The passed-in payload was invalid and could not be processed');
+				winston.error('[session-sharing] The passed-in payload was invalid and could not be processed');
 				break;
 			case 'no-match':
-				winston.info('[session-sharing] Payload valid, but local account not found.  Assuming guest.');
+				winston.error('[session-sharing] Payload valid, but local account not found.  Assuming guest.');
 				handleAsGuest = true;
 				break;
 			default:
-				winston.warn('[session-sharing] Error encountered while parsing token: ' + error.message);
+				winston.error('[session-sharing] Error encountered while parsing token: ' + error.message);
 				break;
 			}
 
@@ -466,6 +466,7 @@ plugin.addMiddleware = async function ({ req, res }) {
 		const isAdmin = await user.isAdministrator(req.user.uid);
 
 		if (plugin.settings.behaviour !== 'update' && (plugin.settings.adminRevalidate === 'on' || !isAdmin)) {
+			winston.error('[session-sharing] logout full refresh');
 			req.logout();
 			res.locals.fullRefresh = true;
 			return handleGuest(req, res);
@@ -477,7 +478,7 @@ plugin.addMiddleware = async function ({ req, res }) {
 
 plugin.cleanup = async (data) => {
 	if (plugin.settings.cookieDomain) {
-		winston.error(`[session-sharing] Clearing cookie. data=${data}, plugin.settings.cookieName=${plugin.settings.cookieName}`);
+		winston.error(`[session-sharing] Clearing cookie. data=${JSON.stringify(data)}, plugin.settings.cookieName=${plugin.settings.cookieName}`);
 		data.res.clearCookie(plugin.settings.cookieName, {
 			domain: plugin.settings.cookieDomain,
 			expires: new Date(),
@@ -564,7 +565,7 @@ plugin.reloadSettings = async (data) => {
 		settings['payload:username'] = 'username';
 	}
 
-	winston.info('[session-sharing] Settings OK');
+	winston.error('[session-sharing] Settings OK');
 	plugin.settings = _.defaults(_.pickBy(settings, Boolean), plugin.settings);
 	plugin.ready = true;
 };
@@ -601,7 +602,7 @@ plugin.saveReverseToken = async ({ req, userData: data }) => {
 		domain: plugin.settings.cookieDomain,
 	});
 
-	winston.info(`[plugins/session-sharing] Saving reverse cookie for uid ${userData.uid}, session: ${req.session.id}`);
+	winston.error(`[plugins/session-sharing] Saving reverse cookie for uid ${userData.uid}, session: ${req.session.id}`);
 };
 
 module.exports = plugin;

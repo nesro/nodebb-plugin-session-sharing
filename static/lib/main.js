@@ -14,7 +14,7 @@ $(document).ready(function () {
 		}
 
 		if (!whitelisted) {
-			console.log('[session-sharing] host not whitelisted', window && window.location && window.location.host);
+			console.error('[session-sharing] host not whitelisted', window && window.location && window.location.host);
 			return;
 		}
 	}
@@ -25,6 +25,7 @@ $(document).ready(function () {
 
 	$(window).on('action:app.loggedOut', function (evt, data) {
 		if (config.sessionSharing.logoutRedirect) {
+			console.error('[session-sharing] redirecting to logoutRedirect', config.sessionSharing.logoutRedirect);
 			data.next = config.sessionSharing.logoutRedirect;
 		}
 	});
