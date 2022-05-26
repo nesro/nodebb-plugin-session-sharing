@@ -176,7 +176,7 @@ plugin.normalizePayload = async (payload) => {
 		delete userData.groups;
 	}
 
-	winston.verbose('[session-sharing] Payload verified');
+	winston.error(`[session-sharing] Payload verified payload=${JSON.stringify(payload)}`);
 	const data = await plugins.hooks.fire('filter:sessionSharing.normalizePayload', {
 		payload: payload,
 		userData: userData,
@@ -342,7 +342,7 @@ async function executeJoinLeave(uid, join, leave) {
 }
 
 plugin.createUser = async (userData) => {
-	winston.verbose('[session-sharing] No user found, creating a new user for this login');
+	winston.error(`[session-sharing] No user found, creating a new user for this login. userData=${userData}`);
 
 	const uid = await user.create(_.pick(userData, profileFields));
 	await db.sortedSetAdd(plugin.settings.name + ':uid', uid, userData.id);
@@ -406,6 +406,7 @@ plugin.addMiddleware = async function ({ req, res }) {
 	try {
 		await meta.blacklist.test(req.ip);
 	} catch (error) {
+		winston.error(`[session-sharing] ip=${req.ip} is blacklisted. hasSession=${hasSession}`);
 		if (hasSession) {
 			req.logout();
 			res.locals.fullRefresh = true;
@@ -418,7 +419,7 @@ plugin.addMiddleware = async function ({ req, res }) {
 	if (Object.keys(req.cookies).length && req.cookies.hasOwnProperty(plugin.settings.cookieName) && req.cookies[plugin.settings.cookieName].length) {
 		try {
 			const uid = await plugin.process(req.cookies[plugin.settings.cookieName]);
-			winston.verbose('[session-sharing] Processing login for uid ' + uid + ', path ' + req.originalUrl);
+			winston.error(`[session-sharing] Processing login for uid=${uid}, path=${req.originalUrl}`);
 			req.uid = uid;
 
 			if (plugin.settings.behaviour === 'revalidate') {
@@ -476,7 +477,7 @@ plugin.addMiddleware = async function ({ req, res }) {
 
 plugin.cleanup = async (data) => {
 	if (plugin.settings.cookieDomain) {
-		winston.verbose('[session-sharing] Clearing cookie');
+		winston.error(`[session-sharing] Clearing cookie. data=${data}, plugin.settings.cookieName=${plugin.settings.cookieName}`);
 		data.res.clearCookie(plugin.settings.cookieName, {
 			domain: plugin.settings.cookieDomain,
 			expires: new Date(),
@@ -553,7 +554,7 @@ plugin.reloadSettings = async (data) => {
 
 	// If "payload:parent" is found, but payloadParent is not, update the latter and delete the former
 	if (!settings.payloadParent && settings['payload:parent']) {
-		winston.verbose('[session-sharing] Migrating payload:parent to payloadParent');
+		winston.error(`[session-sharing] Migrating payload:parent to payloadParent data=${data}`);
 		settings.payloadParent = settings['payload:parent'];
 		await db.setObjectField('settings:session-sharing', 'payloadParent', settings.payloadParent);
 		await db.deleteObjectField('settings:session-sharing', 'payload:parent');

@@ -19,7 +19,7 @@ module.exports = {
 			async.apply(meta.settings.get, 'session-sharing'),
 			function (_settings, next) {
 				settings = _settings;
-				winston.verbose('getting data');
+				winston.error(`[session-sharing] getting data setting=${JSON.stringify(settings)}`);
 				if (settings.secret) {
 					// session-sharing is set up, execute upgrade
 					db.getObject((settings.name || 'appId') + ':uid', next);
@@ -38,7 +38,7 @@ module.exports = {
 
 			// Save new zset
 			function (hashData, next) {
-				winston.verbose('constructing array');
+				winston.error(`[session-sharing] constructing array hashData=${JSON.stringify(hashData)}`);
 				var values = [];
 
 				for(var remoteId in hashData) {
@@ -47,7 +47,7 @@ module.exports = {
 					}
 				}
 				progress.total = values.length;
-				winston.verbose('saving into db');
+				winston.error(`[session-sharing] saving into db`);
 				async.eachSeries(values, function (value, next) {
 					progress.incr();
 					db.sortedSetAdd((settings.name || 'appId') + ':uid', hashData[value], value, next);
