@@ -3,7 +3,10 @@
 const winston = module.parent.require('winston');
 const nconf = module.parent.require('nconf');
 
+const util = require('util');
+
 const _ = require('lodash');
+const jwt = require('jsonwebtoken');
 
 const meta = require.main.require('./src/meta');
 const user = require.main.require('./src/user');
@@ -12,10 +15,9 @@ const SocketPlugins = require.main.require('./src/socket.io/plugins');
 const db = require.main.require('./src/database');
 const plugins = require.main.require('./src/plugins');
 
-const jwt = require('jsonwebtoken');
-
 const controllers = require('./lib/controllers');
 const nbbAuthController = require.main.require('./src/controllers/authentication');
+const logoutAsync = util.promisify((req, callback) => req.logout(callback));
 
 /* all the user profile fields that can be passed to user.updateProfile */
 const profileFields = [
@@ -418,7 +420,7 @@ plugin.addMiddleware = async function ({ req, res }) {
 		await meta.blacklist.test(req.ip);
 	} catch (error) {
 		if (hasSession) {
-			req.logout();
+			await logoutAsync(req);
 			res.locals.fullRefresh = true;
 		}
 
@@ -429,13 +431,12 @@ plugin.addMiddleware = async function ({ req, res }) {
 	if (Object.keys(req.cookies).length && req.cookies.hasOwnProperty(plugin.settings.cookieName) && req.cookies[plugin.settings.cookieName].length) {
 		try {
 			const uid = await plugin.process(req.cookies[plugin.settings.cookieName]);
-			winston.verbose('[session-sharing] Processing login for uid ' + uid + ', path ' + req.originalUrl);
-			req.uid = uid;
-
-			if (plugin.settings.behaviour === 'revalidate' || plugin.settings.behaviour === 'update') {
-				res.locals.reroll = false;	// disable session rerolling in core
+			if (uid === req.uid) {
+				winston.verbose(`[session-sharing] Re-validated login for uid ${uid}, path ${req.originalUrl}`);
+				return;
 			}
 
+			winston.verbose('[session-sharing] Processing login for uid ' + uid + ', path ' + req.originalUrl);
 			await nbbAuthController.doLogin(req, uid);
 
 			req.session.loginLock = true;
@@ -476,7 +477,8 @@ plugin.addMiddleware = async function ({ req, res }) {
 		const isAdmin = await user.isAdministrator(req.user.uid);
 
 		if (plugin.settings.behaviour !== 'update' && (plugin.settings.adminRevalidate === 'on' || !isAdmin)) {
-			req.logout();
+			winston.verbose(`[session-sharing] Found login session but no cookie, logging out user (was uid ${req.uid})`);
+			await logoutAsync(req);
 			res.locals.fullRefresh = true;
 			return handleGuest(req, res);
 		}
