@@ -147,6 +147,18 @@ plugin.normalizePayload = async (payload) => {
 		throw new Error('payload-invalid');
 	}
 
+	if (payload.host) {
+		const { hostWhitelist } = await meta.settings.get('session-sharing');
+		if (hostWhitelist) {
+			const hosts = hostWhitelist.split(',') || [hostWhitelist];
+			if (!hosts.includes(payload.host)) {
+				winston.warn(`[session-sharing] the payload=${JSON.stringify(payload)} does specify a host, but it isn't in whitelisted hosts=${
+					JSON.stringify(hostWhitelist)}`);
+				throw new Error('payload-invalid-host');
+			}
+		}
+	}
+
 	payloadKeys.forEach(function (key) {
 		const propName = plugin.settings['payload:' + key];
 		if (payload[propName]) {
@@ -215,18 +227,20 @@ plugin.findOrCreateUser = async (userData) => {
 
 	if (userData.username && userData.username.length) {
 		queries = [...queries, db.sortedSetScore('username:uid', userData.username)];
-	} 
+	}
 
+	// eslint-disable-next-line prefer-const
 	let [uid, mergeUidFirst, mergeUidSecond] = await Promise.all(queries);
 	uid = parseInt(uid, 10);
 
 	const mergeUidFirstNumber = parseInt(mergeUidFirst, 10);
 	const mergeUidSecondNumber = parseInt(mergeUidSecond, 10);
-	const mergeUid = !isNaN(mergeUidFirstNumber)
-					? mergeUidFirstNumber
-					: !isNaN(mergeUidSecondNumber)
-						? mergeUidSecondNumber
-						: null;
+	// eslint-disable-next-line no-nested-ternary
+	const mergeUid = !isNaN(mergeUidFirstNumber) ?
+		mergeUidFirstNumber :
+		!isNaN(mergeUidSecondNumber) ?
+			mergeUidSecondNumber :
+			null;
 
 	/* check if found something to work with */
 	if (uid && !isNaN(uid)) {
